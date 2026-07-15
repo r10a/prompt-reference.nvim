@@ -225,10 +225,17 @@ local function open_prompt(on_submit, opts)
         and math.max(40, math.min(120, math.floor(vim.o.columns * 0.8)))
         or math.min(80, math.max(20, vim.o.columns - 4))
 
+    -- The initial prompt may span multiple lines (e.g. re-prompting an item
+    -- whose prompt was pasted across lines); split it so each becomes its own
+    -- buffer line. nvim_buf_set_lines rejects any line containing a newline.
+    local init_lines = (opts.initial and opts.initial ~= "")
+        and vim.split(opts.initial, "\n", { plain = true })
+        or { "" }
+
     if #ctx_lines > 0 then
         -- Show the captured selection as read-only context, then a separator,
-        -- then the (editable) prompt input on the final line. Cap generously so
-        -- long selections still fit within the screen.
+        -- then the (editable) prompt input on the final line(s). Cap generously
+        -- so long selections still fit within the screen.
         local max_ctx = math.max(1, vim.o.lines - 8)
         local shown = {}
         for i = 1, math.min(#ctx_lines, max_ctx) do
@@ -239,10 +246,10 @@ local function open_prompt(on_submit, opts)
         end
         local buf_lines = vim.list_extend({}, shown)
         buf_lines[#buf_lines + 1] = string.rep("─", width)
-        buf_lines[#buf_lines + 1] = opts.initial or ""
+        vim.list_extend(buf_lines, init_lines)
         vim.api.nvim_buf_set_lines(buf, 0, -1, false, buf_lines)
     elseif opts.initial and opts.initial ~= "" then
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { opts.initial })
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, init_lines)
     end
 
     -- Height must count wrapped display rows, not just buffer lines: a long
@@ -251,7 +258,9 @@ local function open_prompt(on_submit, opts)
     for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
         display_rows = display_rows + math.max(1, math.ceil(vim.fn.strdisplaywidth(line) / width))
     end
-    local input_row = math.max(0, vim.api.nvim_buf_line_count(buf) - 1)
+    -- First line of the (possibly multi-line) prompt input; submit reads from
+    -- here to the end of the buffer.
+    local input_row = math.max(0, vim.api.nvim_buf_line_count(buf) - #init_lines)
     local height = math.max(1, math.min(display_rows, vim.o.lines - 4))
     local win_opts = {
         width = width,
@@ -275,8 +284,9 @@ local function open_prompt(on_submit, opts)
     local win = vim.api.nvim_open_win(buf, true, win_opts)
     vim.wo[win].wrap = true -- wrap long context/paragraph lines
 
-    -- Put the cursor on the prompt (last) line and enter insert at line end.
-    vim.api.nvim_win_set_cursor(win, { input_row + 1, 0 })
+    -- Put the cursor at the end of the last prompt line and enter insert there,
+    -- so editing continues from where the prompt text left off.
+    vim.api.nvim_win_set_cursor(win, { vim.api.nvim_buf_line_count(buf), 0 })
     vim.cmd("startinsert")
     if opts.initial and opts.initial ~= "" then
         vim.cmd("normal! $")
