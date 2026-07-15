@@ -147,7 +147,8 @@ vim.keymap.set("n", "gc", pr.copy_all, { desc = "Copy review" })
 ## Development
 
 The demo GIF is generated with [VHS](https://github.com/charmbracelet/vhs)
-from `demo/demo.tape`, using an isolated `demo/init.lua` (no personal config):
+from `demo/demo.tape`, recorded against the two sample files (`demo/auth.lua`
+and `demo/routes.lua`) to show the multi-file review path:
 
 ```sh
 cd demo

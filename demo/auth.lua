@@ -6,10 +6,4 @@ function M.verify(token)
     return claims
 end
 
--- Register the authenticated routes.
-function M.routes(router)
-    router:get("/me", M.verify)
-    router:post("/logout", M.logout)
-end
-
 return M
