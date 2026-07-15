@@ -1,0 +1,84 @@
+*prompt-reference.txt*   Stage code references with prompts for pasting to LLMs
+
+==============================================================================
+CONTENTS                                              *prompt-reference-contents*
+
+  1. Introduction .......................... |prompt-reference-intro|
+  2. Usage ................................. |prompt-reference-usage|
+  3. Commands .............................. |prompt-reference-commands|
+  4. Configuration ......................... |prompt-reference-config|
+  5. API ................................... |prompt-reference-api|
+
+==============================================================================
+1. INTRODUCTION                                          *prompt-reference-intro*
+
+prompt-reference.nvim lets you stage code references — each paired with its own
+prompt — into a "review", then copy the whole review to a register (the system
+clipboard by default), formatted as markdown or XML for pasting into an LLM.
+
+Requires Neovim 0.10+ (uses |getregion()|).
+
+==============================================================================
+2. USAGE                                                 *prompt-reference-usage*
+
+1. Select code in visual mode and add it (see |prompt-reference-commands| or
+   the opt-in keymaps). A prompt window opens; type the instruction for that
+   selection and press <CR>.
+2. Repeat across files/regions. A review panel appears bottom-right showing the
+   staged items.
+3. Open the review and press <CR> to copy the bundle to your clipboard and
+   clear it.
+
+Review window keys:~
+  <CR>                copy the whole review to the register & clear
+  dd                  delete the item under the cursor
+  r                   re-enter the prompt for the item (shows code as context)
+  ?                   show help
+  <Tab><Tab>, <Esc>   close the review
+
+==============================================================================
+3. COMMANDS                                           *prompt-reference-commands*
+
+                                                            *:PromptReferenceAdd*
+:PromptReferenceAdd     Add the current visual selection to the review; opens a
+                        prompt window for the per-item instruction.
+
+                                                         *:PromptReferenceReview*
+:PromptReferenceReview  Open the review window.
+
+                                                           *:PromptReferenceCopy*
+:PromptReferenceCopy    Copy the review to the register and clear it.
+
+==============================================================================
+4. CONFIGURATION                                        *prompt-reference-config*
+
+Call setup() to change options and (optionally) enable default keymaps: >
+
+    require("prompt-reference").setup({
+      register = "+",
+      use_git_root = true,
+      include_code = true,
+      output_style = "markdown", -- or "xml"
+      keymaps = {
+        add = "<CR>",          -- (visual) add selection to the review
+        review = "<Tab><Tab>", -- (normal) open the review
+        copy = false,          -- (normal) copy without opening the review
+      },
+    })
+<
+Options:~
+  register      string   Register to copy into. Default "+".
+  use_git_root  boolean  Paths relative to the git root, else cwd. Default true.
+  include_code  boolean  Include the selected code, not just the ref. Default true.
+  output_style  string   "markdown" or "xml". Default "markdown".
+  keymaps       tbl|bool `true` uses the defaults above; a table merges over
+                         them; `false` (default) binds nothing.
+
+==============================================================================
+5. API                                                     *prompt-reference-api*
+
+require("prompt-reference").add_selection()   Stage the visual selection.
+require("prompt-reference").review()          Open the review window.
+require("prompt-reference").copy_all()        Copy the review and clear it.
+
+vim:tw=78:ts=8:ft=help:norl:
