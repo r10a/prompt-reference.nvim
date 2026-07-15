@@ -8,6 +8,12 @@ Instead of copying a snippet, switching to your chat, typing "in `foo.lua` lines
 *review*: select some code, jot the instruction for it, repeat across files, and
 copy it all at once as one structured message.
 
+## Demo
+
+![prompt-reference.nvim demo](demo/demo.gif)
+
+Select code → type a prompt → repeat → open the review → copy the whole bundle.
+
 ## Example output
 
 Selecting two regions and adding a prompt to each, then copying, yields (XML
@@ -137,6 +143,22 @@ vim.keymap.set("n", "gc", pr.copy_all, { desc = "Copy review" })
 - `require("prompt-reference").add_selection()` — stage the current visual selection
 - `require("prompt-reference").review()` — open the review window
 - `require("prompt-reference").copy_all()` — copy the review and clear it
+
+## Development
+
+The demo GIF is generated with [VHS](https://github.com/charmbracelet/vhs)
+from `demo/demo.tape`, using an isolated `demo/init.lua` (no personal config):
+
+```sh
+cd demo
+vhs demo.tape          # writes demo/demo.gif
+```
+
+On macOS, if VHS can't reach its headless browser, point it at a real Chrome:
+
+```sh
+ROD_BROWSER_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" vhs demo.tape
+```
 
 ## License
 
