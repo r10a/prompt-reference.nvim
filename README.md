@@ -155,6 +155,9 @@ cd demo
 vhs demo.tape          # writes demo/demo.gif
 ```
 
+The tape sets `FontFamily "JetBrainsMono Nerd Font"` so file-type icons render
+(install any Nerd Font and adjust the name to match if you don't have it).
+
 On macOS, if VHS can't reach its headless browser, point it at a real Chrome:
 
 ```sh

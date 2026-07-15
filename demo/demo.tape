@@ -7,6 +7,7 @@
 Output demo.gif
 
 Set Shell "bash"
+Set FontFamily "JetBrainsMono Nerd Font"
 Set FontSize 18
 Set Width 1200
 Set Height 760
