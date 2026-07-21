@@ -12,9 +12,10 @@ CONTENTS                                              *prompt-reference-contents
 ==============================================================================
 1. INTRODUCTION                                          *prompt-reference-intro*
 
-prompt-reference.nvim lets you stage code references — each paired with its own
-prompt — into a "review", then copy the whole review to a register (the system
-clipboard by default), formatted as markdown or XML for pasting into an LLM.
+prompt-reference.nvim lets you stage code references - each paired with its own
+prompt - into a "review", then hand the whole review to a sink: a register (the
+system clipboard by default), or straight into a tmux pane running Claude Code.
+Reviews are formatted as markdown or XML for pasting into an LLM.
 
 Requires Neovim 0.10+ (uses |getregion()|).
 
@@ -26,11 +27,11 @@ Requires Neovim 0.10+ (uses |getregion()|).
    selection and press <CR>.
 2. Repeat across files/regions. A review panel appears bottom-right showing the
    staged items.
-3. Open the review and press <CR> to copy the bundle to your clipboard and
-   clear it.
+3. Open the review and press <CR> to send the bundle to the configured sink
+   (clipboard by default) and clear it.
 
 Review window keys:~
-  <CR>                copy the whole review to the register & clear
+  <CR>                send the whole review to the sink & clear
   dd                  delete the item under the cursor
   r                   re-enter the prompt for the item (shows code as context)
   ?                   show help
@@ -55,10 +56,16 @@ Review window keys:~
 Call setup() to change options and (optionally) enable default keymaps: >
 
     require("prompt-reference").setup({
+      sink = "clipboard",        -- "clipboard" or "tmux"
       register = "+",
       use_git_root = true,
       include_code = true,
       output_style = "markdown", -- or "xml"
+      tmux = {                   -- only used when sink = "tmux"
+        command = "claude",      -- foreground command of the pane to auto-detect
+        submit = true,           -- press Enter after pasting
+        select = false,          -- switch focus to that pane after sending
+      },
       keymaps = {
         add = "<CR>",          -- (visual) add selection to the review
         review = "<Tab><Tab>", -- (normal) open the review
@@ -67,12 +74,29 @@ Call setup() to change options and (optionally) enable default keymaps: >
     })
 <
 Options:~
+  sink          string   "clipboard" (copy to register) or "tmux" (paste into
+                         the pane running Claude Code). Default "clipboard".
   register      string   Register to copy into. Default "+".
   use_git_root  boolean  Paths relative to the git root, else cwd. Default true.
   include_code  boolean  Include the selected code, not just the ref. Default true.
   output_style  string   "markdown" or "xml". Default "markdown".
+  tmux.command  string   Foreground command to match when auto-detecting the
+                         target pane. Default "claude".
+  tmux.submit   boolean  Press Enter after pasting so the review is sent.
+                         Default true.
+  tmux.select   boolean  Switch focus to the target pane after sending.
+                         Default false.
   keymaps       tbl|bool `true` uses the defaults above; a table merges over
                          them; `false` (default) binds nothing.
+
+tmux sink:~
+With sink = "tmux", finishing a review pastes the whole bundle into the tmux
+pane running Claude Code and presses Enter, instead of copying to a register.
+Run Neovim and claude in the same tmux session; the target pane is found by
+matching |tmux.command| against each pane's foreground command. The paste uses
+bracketed paste so multi-line reviews arrive as one block. If Neovim isn't in
+tmux, or no matching pane is found, the review falls back to the clipboard with
+a warning. This is a one-way hand-off; it does not read Claude's response back.
 
 ==============================================================================
 5. API                                                     *prompt-reference-api*

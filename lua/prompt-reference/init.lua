@@ -5,10 +5,22 @@
 local M = {}
 
 M.config = {
+    -- Where a finished review goes:
+    --   "clipboard" — yank into `register` (default)
+    --   "tmux"      — paste it into the tmux pane running `claude`, then submit
+    sink = "clipboard",
     register = "+", -- register to copy into (default: system clipboard)
     use_git_root = true, -- path relative to git root; falls back to cwd-relative
     include_code = true, -- append the selected code (fenced block / xml body)
     output_style = "markdown", -- "markdown" or "xml" (xml is parsed more reliably by Claude)
+    tmux = {
+        -- Foreground command to look for when auto-detecting the target pane.
+        -- Your `claude` is a compiled binary, so the pane's current command is
+        -- literally "claude"; adjust if you wrap it (e.g. a shell alias).
+        command = "claude",
+        submit = true, -- press Enter after pasting so the review is sent
+        select = false, -- switch focus to the target pane after sending
+    },
     -- Set `keymaps = false` to bind nothing. Any entry can be set to false to
     -- skip just that mapping. Defaults are opt-in via setup({ keymaps = true }).
     keymaps = {
@@ -323,14 +335,99 @@ function M.add_selection()
     end)
 end
 
--- Copy the whole review to the register, then clear it.
+-- Locate the tmux pane running `claude` and return its pane id (e.g. "%12"),
+-- or nil if none is found. Pane ids are stable across window renumbering
+-- (unlike session:window.pane), so they're the safest target. Queries live
+-- server state on every call — a sub-millisecond fork, cheaper than caching a
+-- target that may move or die between sends.
+local function find_claude_pane()
+    local want = M.config.tmux.command
+    local res = vim.system({
+        "tmux", "list-panes", "-a", "-F", "#{pane_id} #{pane_current_command}",
+    }, { text = true }):wait()
+    if res.code ~= 0 then
+        return nil
+    end
+    for line in vim.gsplit(res.stdout, "\n", { trimempty = true }) do
+        local pane, cmd = line:match("^(%%%d+)%s+(%S+)$")
+        if pane and cmd == want then
+            return pane
+        end
+    end
+    return nil
+end
+
+-- Send `text` into the tmux pane running claude. Returns true on success, or
+-- false plus a message. Uses load-buffer (payload via stdin, so nothing is
+-- shell-quoted) + paste-buffer -p (bracketed paste, delivered atomically so
+-- embedded newlines don't submit line-by-line), then an explicit Enter.
+local function send_to_tmux(text)
+    if not (vim.env.TMUX and vim.env.TMUX ~= "") then
+        return false, "not inside tmux"
+    end
+    local target = find_claude_pane()
+    if not target then
+        return false, string.format("no tmux pane running %q", M.config.tmux.command)
+    end
+
+    local load = vim.system(
+        { "tmux", "load-buffer", "-b", "promptref", "-" },
+        { stdin = text }
+    ):wait()
+    if load.code ~= 0 then
+        return false, "tmux load-buffer failed: " .. (load.stderr or "")
+    end
+
+    -- -d deletes the buffer after pasting; -p wraps in bracketed paste only if
+    -- the pane's app advertises support (claude's TUI does).
+    local paste = vim.system({
+        "tmux", "paste-buffer", "-b", "promptref", "-t", target, "-p", "-d",
+    }):wait()
+    if paste.code ~= 0 then
+        return false, "tmux paste-buffer failed: " .. (paste.stderr or "")
+    end
+
+    if M.config.tmux.submit then
+        vim.system({ "tmux", "send-keys", "-t", target, "Enter" }):wait()
+    end
+    if M.config.tmux.select then
+        vim.system({ "tmux", "select-pane", "-t", target }):wait()
+    end
+    return true, target
+end
+
+-- Deliver the whole review to the configured sink, then clear it. Falls back to
+-- the clipboard if the tmux sink can't reach a claude pane, so a finished review
+-- is never silently lost.
 function M.copy_all()
     if #staged == 0 then
         vim.notify("prompt-reference: nothing staged", vim.log.levels.WARN)
         return
     end
-    vim.fn.setreg(M.config.register, format_batch(staged))
-    vim.notify(string.format("Copied review of %d references", #staged))
+    local payload = format_batch(staged)
+    local n = #staged
+
+    if M.config.sink == "tmux" then
+        local ok, info = send_to_tmux(payload)
+        if ok then
+            vim.notify(string.format("Sent review of %d references to tmux %s", n, info))
+            staged = {}
+            refresh_panel()
+            return
+        end
+        -- Fall through to clipboard so the review isn't lost.
+        vim.fn.setreg(M.config.register, payload)
+        vim.notify(
+            string.format("tmux sink: %s — copied review of %d references to clipboard instead", info, n),
+            vim.log.levels.WARN
+        )
+        staged = {}
+        refresh_panel()
+        return
+    end
+
+    vim.fn.setreg(M.config.register, payload)
+    vim.notify(string.format("Copied review of %d references", n))
     staged = {}
     refresh_panel()
 end

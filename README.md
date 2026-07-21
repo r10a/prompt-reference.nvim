@@ -114,10 +114,18 @@ Defaults:
 
 ```lua
 require("prompt-reference").setup({
+  sink = "clipboard",        -- where a finished review goes: "clipboard" or "tmux"
   register = "+",            -- register to copy into (default: system clipboard)
   use_git_root = true,       -- paths relative to the git root; else cwd-relative
   include_code = true,       -- include the selected code, not just the reference
   output_style = "markdown", -- "markdown" or "xml" (xml parses more reliably for Claude)
+
+  -- Only used when sink = "tmux".
+  tmux = {
+    command = "claude",      -- foreground command of the pane to auto-detect
+    submit = true,           -- press Enter after pasting so the review is sent
+    select = false,          -- switch focus to that pane after sending
+  },
 
   -- Opt-in keymaps. `keymaps = true` uses these defaults; a table merges over
   -- them; `false` (the default) binds nothing so you can map the functions yourself.
@@ -128,6 +136,24 @@ require("prompt-reference").setup({
   },
 })
 ```
+
+### Sending straight into a running Claude Code session (tmux)
+
+With `sink = "tmux"`, finishing a review (the review window's `<CR>`, or
+`copy_all`) pastes the whole bundle into the tmux pane running Claude Code and
+presses Enter, instead of copying to a register. Run Neovim and `claude` in the
+same tmux session (any windows/panes); the target pane is found automatically by
+matching `tmux.command` (default `"claude"`) against each pane's foreground
+command, so no window numbers are hard-coded.
+
+The paste goes through `tmux load-buffer` (payload via stdin, never
+shell-quoted) and `paste-buffer -p` (bracketed paste), so multi-line reviews and
+any backticks/quotes/XML in your prompts arrive intact as one block. If Neovim
+isn't inside tmux, or no matching pane is found, the review falls back to the
+clipboard with a warning so it's never lost.
+
+This is a one-way hand-off: it types the review into your existing interactive
+session; it does not read Claude's response back.
 
 To bind your own keys instead of the defaults:
 
